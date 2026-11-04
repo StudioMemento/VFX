@@ -1,11 +1,12 @@
 // Particles describe world-space sheets; projected coordinates share the cursor/frame solver.
 export const GROUND_SHARE=.44;
 export const ORBIT_END=.80;
+export const WAVE_LAYERS=1;
 export const surfaceKind=seed=>seed<GROUND_SHARE?0:seed<ORBIT_END?1:2;
 const TAU=Math.PI*2;
 export function surfaceTarget(kind,u,v,time,w,h,out=[]){
  const S=Math.min(w,h),D=S*1.8;
- let x=w*(.018+.964*u),xs=w*.964,xvScreen=0,y,z,yu,yv,zu,zv;
+ let x=w*(-.12+1.24*u),xs=w*1.24,xvScreen=0,y,z,yu,yv,zu,zv;
  if(kind===0){
   // Rippling horizontal floor, just below the icon, from horizon toward camera.
   const level=Math.min(w*.4,h*.3)*1.12;
@@ -43,4 +44,24 @@ export function surfaceTarget(kind,u,v,time,w,h,out=[]){
  const length=Math.hypot(nx,ny,nz)||1;
  out[0]=x;out[1]=y;out[2]=z;out[3]=nx/length;out[4]=ny/length;out[5]=nz/length;
  return out;
+}
+
+export function groundDepthSpan(w,h){const S=Math.min(w,h),D=S*1.8,level=Math.min(w*.4,h*.3)*1.12;return Math.min(S*1.05,D*(1-(level+S*.04)/(h*.475)))+S*2.15;}
+
+// Progressive dyadic grid: reduced quality selects a spatially distributed
+// sub-grid instead of deleting a contiguous part of any surface.
+export function gridDimensions(count,aspect=6){
+ const xBits=Math.max(1,Math.ceil(Math.log2(Math.sqrt(count*aspect)))),yBits=Math.max(1,Math.ceil(Math.log2(count/(2**xBits))));
+ return {xBits,yBits,columns:2**xBits,rows:2**yBits};
+}
+export function gridSample(index,grid,out=[]){
+ let x=0,y=0,bit=0,xd=0,yd=0;
+ // Spend the extra horizontal bits first. Partial tiers keep long curved rows
+ // instead of producing sparse vertical columns on the projected surface.
+ while(xd<grid.xBits-grid.yBits){x+=((index>>bit)&1)*2**(grid.xBits-xd-1);xd++;bit++;}
+ while(xd<grid.xBits||yd<grid.yBits){
+  if(xd<grid.xBits){x+=((index>>bit)&1)*2**(grid.xBits-xd-1);xd++;bit++;}
+  if(yd<grid.yBits){y+=((index>>bit)&1)*2**(grid.yBits-yd-1);yd++;bit++;}
+ }
+ out[0]=(x+.5)/grid.columns;out[1]=(y+.5)/grid.rows;return out;
 }

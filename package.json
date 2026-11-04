@@ -2,7 +2,7 @@
   "name": "memento-ready-to-start-cinematic",
   "private": true,
   "type": "module",
-  "version": "1.0.0",
+  "version": "6.0.0",
   "scripts": {
     "build": "node scripts/verify-release.mjs"
   }

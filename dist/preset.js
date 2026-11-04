@@ -1,6 +1,6 @@
 // Versioned art direction and physical constants. All distances are CSS pixels.
 export const PRESET = Object.freeze({
-  seed: 20261102, balanced:24000, high:24000, mobile:12000, low:10000, background:8000, mobileBackground:3500,
+  seed: 20261102, balanced:30000, high:30000, mobile:15000, low:12000, background:14000, mobileBackground:6000,
   dpr:1.25, mobileDpr:1, fixedStep:1/120, maxSubsteps:4,
   restitution:.38, friction:.12, speedLimit:2.5,
   pointerSmooth:.045, tiltSmooth:.22, releaseDecay:1.65, heatDecay:1.8,

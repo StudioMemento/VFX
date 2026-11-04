@@ -42,7 +42,7 @@ export function generateParticleGeometry(count,seed=PRESET.seed){
   rest[o]=p[0];rest[o+1]=p[1];rest[o+2]=p[2];
   // Clustering creates pockets of air rather than a uniformly filled surface.
   const stream=.5+.5*Math.sin(p[0]*28+p[1]*17+Math.sin(p[1]*21)*1.7);
-  rest[o+3]=.38+.62*Math.pow(stream,.7);
+  rest[o+3]=.52+.48*Math.pow(stream,.7);
   const size=rng();rest[o+4]=size<.67?1.7+size*3.5:size<.965?4+(size-.67)*8.5:6.8+(size-.965)*90;
   rest[o+5]=rng();rest[o+6]=f.group;rest[o+7]=f.material===2?1:0;
   surface.set([...f.normal,f.material],i*4);

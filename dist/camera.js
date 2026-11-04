@@ -2,7 +2,7 @@
 // Physics uses projected coordinates, so the six frame walls are the camera frustum.
 export function cameraFor(w,h){
  const s=Math.min(w,h),distance=s*1.8;
- return {w,h,distance,focus:distance,near:s*.10,far:s*5.8,aperture:s*.019};
+ return {w,h,distance,focus:distance,near:s*.10,far:s*5.8,aperture:s*.0045};
 }
 export function projectPoint(x,y,z,c,out=[]){
  const magnification=c.distance/(c.distance-z);

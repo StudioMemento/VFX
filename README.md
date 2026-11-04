@@ -1,29 +1,48 @@
-# Memento Ready to Start — Cinematic V1
+# Memento Ready to Start — Orbital FX V6
 
 ## Deploy
 
-1. Estrai lo ZIP. La root da caricare è quella che contiene `vercel.json`, `dist` e `scripts`.
-2. Importa questa cartella nel repository collegato a Vercel, oppure esegui `vercel` dalla cartella estratta se usi già la CLI.
-3. Il progetto usa il preset **Other** e pubblica `dist`. La configurazione inclusa esegue solo una verifica dei file statici. Non servono dipendenze runtime, variabili ambiente o chiavi.
-4. Dopo il deploy apri l'URL HTTPS sul device reale. La CTA mantiene il link `https://mementostudio.it/start`.
+1. Estrai lo ZIP. La root del progetto contiene `vercel.json`, `dist` e `scripts`.
+2. Usa questa cartella nel repository collegato a Vercel, oppure esegui `vercel` dalla root estratta se usi già la CLI.
+3. La configurazione inclusa pubblica `dist` e verifica i riferimenti statici. Nessuna dipendenza runtime, variabile ambiente o chiave.
+4. Apri l'URL HTTPS sul device reale. La CTA mantiene `https://mementostudio.it/start`.
 
-Non aprire `index.html` con `file://`: la scena usa moduli ES. Per una verifica locale puoi servire `dist` con un server HTTP statico.
+La scena usa moduli ES: `file://` non è un'anteprima supportata.
 
-Configurazione di riferimento: https://vercel.com/docs/project-configuration/vercel-json
+## Interazione
+
+- Mouse: hover, rotazione, dispersione e calore ambra locale a ogni passaggio.
+- Touch: tocco e trascinamento sulla scena, in **ogni direzione**. La scena cattura il singolo dito; sollevandolo, le particelle rientrano dolcemente. Il secondo dito interrompe le forze e lascia disponibile il pinch del browser.
+- Tap su titolo: apre la CTA. Lo scorrimento iniziato sul footer rimane nativo. Questa separazione evita che un gesto sullo sparkle apra accidentalmente il link.
+- Tastiera: Tab / Enter sul link. Reduced motion e fallback statico mantengono la navigazione nativa e lo scroll.
 
 ## Direzione visiva
 
-Sparkle derivato dall'asset di navigazione originale, usato soltanto come volume di campionamento. Superficie composta da frammenti mobili, mesh guida invisibile. Carbone con riflessi neutri contenuti e luce ambra in alto a destra.
+La mesh originale di navigazione è una guida invisibile. Le particelle dello sparkle conservano il materiale di ciascun triangolo campionato: carbone e zone ambra originali. I frammenti continuano a muoversi al suo interno.
 
-Ambiente composto da un piano ondulato (44%), una superficie orbitale (36%) e una wave ascendente (20%). La parte frontale e quella posteriore dell'orbita hanno profondità reali. I frammenti più grandi sono istanze di geometrie sfaccettate e appartengono alle stesse superfici; lo sfocato deriva dal buffer di profondità. Il velo vicino alla sorgente è un'approssimazione leggera dello scattering atmosferico.
+Un'unica point light illumina icona e ambiente, seguendo moderatamente il puntatore smussato. Il bagliore sovrapposto nell'angolo è stato rimosso.
 
-Typo HTML Inter 300 / 600, senza particelle: bianco, bagliore ambrato interno e riflesso stretto orientato dal cursore. Restano i comportamenti touch, tastiera, reduced motion, pausa fuori schermo e ritorno morbido dopo l'interazione.
+L’ambiente riprende la versione di riferimento su visualfx: piano basso (44%), orbita stretta attorno allo sparkle (36%) e scia diagonale ascendente (20%). I grani hanno distribuzione organica; i nastri elicoidali superiori e la griglia fitta della V5 sono rimossi. Il flusso continua oltre il frame senza dissolversi ai suoi bordi.
 
-## Budget
+Vicino al cursore affiora una micro-mesh triangolare aderente alle tre superfici, con profondità reale e rare facce illuminate. Lo stesso campo accende typo e bordo: non viene disegnata una rete nello spazio vuoto. Lo sparkle conserva asset, simulazione, composizione, materiale e input della V5.
 
-| Profilo | Sparkle | Ambiente | DPR massimo |
-|---|---:|---:|---:|
-| Desktop | 24.000 | 8.000 | 1,25 |
-| Mobile / stretto | 12.000 | 3.500 | 1 |
+L'apertura più contenuta mantiene leggibili le superfici lontane. L'icona usa il 25% di particelle in più rispetto a V2 e una copertura più uniforme; le zone ambra derivano sempre dai materiali originali.
 
-La qualità si adatta sotto carico. Questi numeri non sono una promessa di 60 FPS: la misura definitiva va eseguita su hardware reale. Leggi `PERFORMANCE.md` per la procedura.
+Typo vettoriale uniforme Inter 400, tracking positivo: READY TO START? su una riga quando la larghezza è almeno 640 px e il rapporto del frame è ≥1,12; due righe nei viewport stretti o portrait. Le righe riempiono la distanza fra i due padding. Un unico gradiente bianco→ambra a 135°, dall’alto a sinistra verso l’ambra in basso a destra, condiviso fra tutte le righe; all’hover, una trama triangolare e un rimlight locali seguono il cursore e raggiungono i caratteri vicini. Nessuna deformazione o simulazione particellare del testo. Nessun chevron. La luce locale aggiunge una trama sottile anche lungo il bordo reale della tab, mantenendo i tagli diagonali. La mesh viene costruita soltanto al resize. I preset sono in `dist/cursor-field.js`.
+
+## Budget e sfocatura
+
+| Profilo iniziale | Sparkle | Ancore ambiente | DPR max | DOF automatico |
+|---|---:|---:|---:|---|
+| Desktop | 30.000 | 14.000 | 1,25 | Leggero, se depth texture disponibile |
+| Mobile / stretto | 15.000 | 6.000 | 1 | OFF |
+
+L’ambiente torna a un grano per ancora. Il materiale triangolare usa una draw call aggiuntiva soltanto mentre il cursore è presente o la luce sta dissolvendo; la geometria inviata è limitata al suo raggio.
+
+L'adattamento al carico può ridurre DPR/densità e disattivare il DOF automatico. La prospettiva e le dimensioni fisiche restano attive con DOF spento.
+
+`?fx=off` disattiva il nuovo materiale su typo, bordo e ambiente, lasciando invariata la simulazione dello sparkle. `?perf=1` include il toggle «Materiale cursore» per un confronto senza ricaricare.
+
+`?dof=on` forza il filtro; `?dof=off` lo salta completamente. `?perf=1` aggiunge un pannello locale con confronto ON/OFF e registrazioni di 30 s. Vedi `PERFORMANCE.md`.
+
+I test di layout nel browser non certificano touch, FPS o temperatura di un telefono reale. Il progetto è predisposto per questa verifica dopo il deploy; il report non invia dati a servizi esterni.

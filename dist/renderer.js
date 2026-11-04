@@ -1,4 +1,5 @@
 import {cameraFor,unprojectPoint} from './camera.js';
+import {ENVIRONMENT_VERTEX,ENVIRONMENT_FRAGMENT} from './environment-light.js';
 
 // Every visible solid is a small grain. The navigation guide is never rendered.
 const COMMON=`
@@ -13,22 +14,30 @@ vec4 project(vec3 p){float d=u_camera.x-p.z,n=u_camera.y,f=u_camera.z;v_depth=d;
 vec3 displayColor(vec3 c){return pow(1.-exp(-max(c,vec3(0.))),vec3(1./2.2));}
 vec3 illuminate(vec3 pos,vec3 n,float material,float seed){
  float S=min(u_resolution.x,u_resolution.y);
- vec3 base=vec3(.045,.049,.055);if(material>.5)base=vec3(.012,.014,.017);if(material>1.5)base=vec3(.12,.13,.14);if(material>2.5)base=vec3(.20,.055,.012);
+ vec3 base=vec3(.028,.031,.035);if(material>.5)base=vec3(.014,.016,.019);if(material>1.5)base=vec3(.10,.11,.12);if(material>2.5)base=vec3(.20,.055,.012);
+ float amberRegion=step(2.5,material);
  vec3 delta=(u_light-pos)/S,L=normalize(delta),V=normalize(vec3(u_resolution*.5,u_camera.x)-pos),K=normalize(vec3(-.56,-.74,.78));
  float attenuation=2.2/(.55+dot(delta,delta)*1.5),rough=30.+seed*58.;
  float diffuse=max(dot(n,L),0.),spec=pow(max(dot(n,normalize(L+V)),0.),rough);
  float neutral=max(dot(n,K),0.),neutralSpec=pow(max(dot(n,normalize(K+V)),0.),rough*.82);
- vec3 amber=vec3(1.,.32,.065),c=base*(.035+neutral*.34)+vec3(.88,.91,.94)*neutralSpec*.80;
- c+=amber*attenuation*(base*diffuse*.52+spec*5.5+pow(diffuse,5.)*.12);
- if(material>2.5)c+=amber*attenuation*(.08+diffuse*.4);
+ vec3 amber=vec3(1.,.32,.065),c=base*(.07+neutral*.60)+vec3(.88,.91,.94)*neutralSpec*.62;
+ c+=amber*attenuation*(base*diffuse*.28+spec*mix(.22,2.8,amberRegion));
+ // Original material IDs are sampled from the navigation mesh, never randomized.
+ if(material>2.5)c+=amber*(.045+attenuation*(.06+diffuse*.38));
  if(material>3.5)c=vec3(2.7,2.55,2.25)*(.72+seed*.28)+amber*diffuse*attenuation*.12;
  // Surface exposure compensates for the sparse, depth-filtered field; heat stays local.
  float field=step(.5,u_kind)*step(u_kind,2.5),fieldLight=mix(1.,.85+seed*.45,field);
+ if(field>.5){
+  vec3 fieldBase=material>2.5?vec3(.20,.055,.012):material>1.5?vec3(.12,.13,.14):vec3(.045,.049,.055);
+  c=fieldBase*(.035+neutral*.34)+vec3(.88,.91,.94)*neutralSpec*.80;
+  c+=amber*attenuation*(fieldBase*diffuse*.52+spec*5.5+pow(diffuse,5.)*.12);
+  if(material>2.5)c+=amber*attenuation*(.08+diffuse*.4);
+ }
  c*=fieldLight;
- if(u_kind<.5){vec3 guide=normalize(rotate(a_surface.xyz));float facing=max(dot(guide,L),0.),rim=pow(1.-abs(dot(guide,V)),2.);c*=.50+.50*facing;c+=amber*attenuation*rim*facing*.20;}
+ if(u_kind<.5){vec3 guide=normalize(rotate(a_surface.xyz));float facing=max(dot(guide,L),0.),rim=pow(1.-abs(dot(guide,V)),2.);c*=.50+.50*facing;c+=amber*attenuation*rim*facing*.10*amberRegion;}
  float heat=clamp(a_look.z,0.,1.);
  c=mix(c,c*.15+vec3(4.7,.42,.025),heat*.94);
- v_emit=clamp(heat*.96+spec*attenuation*.13*fieldLight+step(2.5,material)*step(material,3.5)*attenuation*.08*fieldLight,0.,1.);
+ v_emit=clamp(heat*.96+spec*attenuation*mix(.012,.09,amberRegion)*fieldLight+step(2.5,material)*step(material,3.5)*attenuation*.08*fieldLight,0.,1.);
  if(material>4.5){c=amber*9.;v_emit=1.;}
  return displayColor(c);
 }
@@ -41,7 +50,7 @@ void main(){
  vec3 t=normalize(cross(axis,n)),b=cross(n,t);
  float angle=a_motion.z*62.8+sin(u_time*.48+a_motion.z*12.)*(.24+a_motion.w),c=cos(angle),s=sin(angle);
  vec3 T=t*c+b*s,B=b*c-t*s;
- float size=a_look.y*clamp(u_scale/300.,.50,1.35)*sqrt(max(0.,a_look.x));
+ float size=a_look.y*clamp(u_scale/300.,.70,1.35)*sqrt(max(0.,a_look.x));
  vec3 shape=a_local*vec3(.8+a_motion.z*.45,.75+fract(a_motion.z*17.)*.6,.7);
  vec3 p=world(a_position)+(T*shape.x+B*shape.y+n*shape.z)*size;
  vec3 face=normalize(T*a_normal.x+B*a_normal.y+n*a_normal.z);
@@ -54,8 +63,8 @@ void main(){
  vec3 p=world(a_position),n=normalize(u_kind<.5?rotate(a_surface.xyz):a_surface.xyz);
  v_color=illuminate(p,n,a_surface.w,a_motion.z);gl_Position=project(p);
  if(a_look.x<.001)gl_Position=vec4(2.,2.,2.,1.);
- float size=a_look.y*(u_kind>1.5?1.:clamp(u_scale/300.,.5,1.35));
- gl_PointSize=max(.7,size*u_camera.x/(u_camera.x-p.z))*u_dpr*sqrt(max(0.,a_look.x));v_seed=a_motion.z;
+ float size=a_look.y*(u_kind>1.5?1.:clamp(u_scale/300.,.70,1.35));
+ gl_PointSize=max(.9,size*u_camera.x/(u_camera.x-p.z))*u_dpr*sqrt(max(0.,a_look.x));v_seed=a_motion.z;
 }`;
 const POINT_FRAGMENT=`
 precision highp float;uniform float u_depthPass;uniform vec4 u_camera;
@@ -73,12 +82,12 @@ const LENS_FRAGMENT=`
 precision highp float;varying vec2 v_uv;uniform sampler2D u_color;uniform sampler2D u_depth;uniform sampler2D u_original;
 uniform vec2 u_pixels;uniform vec4 u_camera;uniform float u_nativeDepth;uniform float u_dpr;uniform float u_horizontal;
 float distanceAt(vec2 uv){float d=texture2D(u_depth,uv).r,n=u_camera.y,f=u_camera.z;return u_nativeDepth>.5?2.*n*f/(f+n-(2.*d-1.)*(f-n)):d*f;}
-float coc(float d){return clamp(abs(u_camera.w*(1.-u_camera.x/max(d,u_camera.y)))*u_dpr-.3*u_dpr,0.,17.*u_dpr);}
+float coc(float d){return clamp(abs(u_camera.w*(1.-u_camera.x/max(d,u_camera.y)))*u_dpr-.55*u_dpr,0.,8.*u_dpr);}
 void main(){
  vec4 original=texture2D(u_original,v_uv);float depth=distanceAt(v_uv),radius=coc(depth);
- float span=max(radius,5.*u_dpr);vec2 direction=u_horizontal>.5?vec2(1.,0.):vec2(0.,1.);
+ float span=max(radius,2.*u_dpr);vec2 direction=u_horizontal>.5?vec2(1.,0.):vec2(0.,1.);
  vec3 sum=vec3(0.);float weights=0.,emission=0.,emissionWeights=0.;
- ${Array.from({length:11},(_,i)=>{const x=(i-5)/5,w=Math.exp(-x*x*2.5);return `{
+ ${Array.from({length:7},(_,i)=>{const x=(i-3)/3,w=Math.exp(-x*x*2.5);return `{
   vec2 uv=v_uv+direction*span*${x.toFixed(5)}/u_pixels;vec4 sampleColor=texture2D(u_color,uv);float d=distanceAt(uv),weight=${w.toFixed(7)};
   if(d>depth+u_camera.x*.035&&radius<1.5)weight*=.01;
   sum+=sampleColor.rgb*weight;weights+=weight;emission+=sampleColor.a*${w.toFixed(7)};emissionWeights+=${w.toFixed(7)};
@@ -86,27 +95,24 @@ void main(){
  vec3 filtered=sum/max(weights,.001);float glow=emission/emissionWeights;
  if(u_horizontal>.5){gl_FragColor=vec4(filtered,glow);return;}
  vec3 color=mix(original.rgb,filtered,smoothstep(.55,2.4,radius));
- color+=vec3(1.,.32,.055)*glow*.95;
- // Restrained atmospheric scattering aligned with the actual upper-right point source.
- vec2 lightDelta=(v_uv-vec2(.985,.988))*vec2(u_pixels.x/u_pixels.y,1.);
- float sourceHalo=exp(-dot(lightDelta,lightDelta)*28.)*.25+exp(-length(lightDelta)*2.8)*.025;
- float shaft=exp(-pow((lightDelta.y-lightDelta.x*.62)/.085,2.))*exp(-length(lightDelta)*2.1)*.028;
- color+=vec3(1.,.30,.045)*(sourceHalo+shaft);
- color+=vec3(.75,.42,.16)*exp(-dot(lightDelta,lightDelta)*300.);
+ color+=vec3(1.,.32,.055)*glow*.42;
  gl_FragColor=vec4(color,1.);
 }`;
 
 function compile(gl,type,source){const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){const error=gl.getShaderInfoLog(s);gl.deleteShader(s);throw new Error(error);}return s;}
 function link(gl,vs,fs){const p=gl.createProgram(),v=compile(gl,gl.VERTEX_SHADER,vs),f=compile(gl,gl.FRAGMENT_SHADER,fs);gl.attachShader(p,v);gl.attachShader(p,f);gl.linkProgram(p);gl.deleteShader(v);gl.deleteShader(f);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));return p;}
-function program(gl,vs,fs,shards=false){const p=link(gl,vs,fs);return {p,attributes:[['a_position',3,0],['a_look',3,12],['a_motion',4,24],['a_surface',4,40]].map(([n,size,offset])=>({location:gl.getAttribLocation(p,n),size,offset})),uniforms:Object.fromEntries(['resolution','rotation','light','camera','dpr','scale','kind','time','depthPass'].map(n=>[n,gl.getUniformLocation(p,'u_'+n)])),local:shards?gl.getAttribLocation(p,'a_local'):-1,normal:shards?gl.getAttribLocation(p,'a_normal'):-1};}
+function program(gl,vs,fs,shards=false){const p=link(gl,vs,fs);return {p,attributes:[['a_position',3,0],['a_look',3,12],['a_motion',4,24],['a_surface',4,40]].map(([n,size,offset])=>({location:gl.getAttribLocation(p,n),size,offset})),uniforms:Object.fromEntries(['resolution','rotation','light','camera','dpr','scale','kind','time','depthPass'].map(n=>[n,gl.getUniformLocation(p,'u_'+n)])),local:gl.getAttribLocation(p,shards?'a_local':'a_offset'),normal:shards?gl.getAttribLocation(p,'a_normal'):-1};}
 
 export class ParticleRenderer{
- constructor(canvas){
+ constructor(canvas,{depthOfField=true,automatic=true}={}){
   this.canvas=canvas;const gl=canvas.getContext('webgl',{alpha:false,antialias:false,depth:true,stencil:false,powerPreference:'high-performance'});if(!gl)throw new Error('WebGL unavailable');this.gl=gl;
-  this.instancing=gl.getExtension('ANGLE_instanced_arrays');this.nativeDepth=!!gl.getExtension('WEBGL_depth_texture');
+  this.instancing=gl.getExtension('ANGLE_instanced_arrays');this.nativeDepth=!!gl.getExtension('WEBGL_depth_texture');this.dof=depthOfField&&(this.nativeDepth||!automatic);this.automatic=automatic;
   this.points=program(gl,POINT_VERTEX,POINT_FRAGMENT);this.shards=this.instancing?program(gl,SHARD_VERTEX,SHARD_FRAGMENT,true):null;
   this.lens=link(gl,SCREEN_VERTEX,LENS_FRAGMENT);this.lensQuad=gl.getAttribLocation(this.lens,'a_quad');this.lensUniforms=Object.fromEntries(['color','depth','original','pixels','camera','nativeDepth','dpr','horizontal'].map(n=>[n,gl.getUniformLocation(this.lens,'u_'+n)]));
-  this.buffers={icon:gl.createBuffer(),dust:gl.createBuffer(),foreground:gl.createBuffer(),light:gl.createBuffer(),grain:gl.createBuffer(),quad:gl.createBuffer()};this.allocated=new Map();this.uploadViews=new Map();
+  this.buffers={icon:gl.createBuffer(),dust:gl.createBuffer(),foreground:gl.createBuffer(),grain:gl.createBuffer(),quad:gl.createBuffer(),environment:gl.createBuffer()};this.allocated=new Map();this.uploadViews=new Map();
+  this.environmentProgram=link(gl,ENVIRONMENT_VERTEX,ENVIRONMENT_FRAGMENT);
+  this.environmentAttributes=['a_position','a_edge','a_seed'].map(name=>gl.getAttribLocation(this.environmentProgram,name));
+  this.environmentUniforms=Object.fromEntries(['resolution','camera','pointer','depthPass'].map(name=>[name,gl.getUniformLocation(this.environmentProgram,'u_'+name)]));
   gl.bindBuffer(gl.ARRAY_BUFFER,this.buffers.grain);gl.bufferData(gl.ARRAY_BUFFER,grainGeometry(),gl.STATIC_DRAW);
   gl.bindBuffer(gl.ARRAY_BUFFER,this.buffers.quad);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
   gl.clearDepth(1);gl.depthFunc(gl.LEQUAL);this.framebuffers=[];this.textures=[];this.renderbuffers=[];
@@ -121,15 +127,18 @@ export class ParticleRenderer{
  releaseTargets(){const gl=this.gl;this.framebuffers.forEach(f=>gl.deleteFramebuffer(f));this.textures.forEach(t=>gl.deleteTexture(t));this.renderbuffers.forEach(r=>gl.deleteRenderbuffer(r));this.framebuffers=[];this.textures=[];this.renderbuffers=[];}
  resize(w,h,dpr){
   this.w=w;this.h=h;this.dpr=dpr;this.camera=cameraFor(w,h);this.canvas.width=Math.round(w*dpr);this.canvas.height=Math.round(h*dpr);
-  const gl=this.gl;this.releaseTargets();this.color=this.texture(this.canvas.width,this.canvas.height);this.depth=this.texture(this.canvas.width,this.canvas.height,this.nativeDepth);
+  const gl=this.gl;this.releaseTargets();
+  this.light=sceneLight(w,h,this.camera);this.lightTarget=[];this.lastLightTime=0;
+  if(!this.dof){gl.bindFramebuffer(gl.FRAMEBUFFER,null);return;}
+  this.color=this.texture(this.canvas.width,this.canvas.height);this.depth=this.texture(this.canvas.width,this.canvas.height,this.nativeDepth);
   this.sceneFbo=this.framebuffer(this.color,this.nativeDepth?this.depth:null);if(!this.nativeDepth)this.depthFbo=this.framebuffer(this.depth,null);
   gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,this.canvas.width,this.canvas.height);
   this.lensColor=this.texture(Math.max(1,Math.round(this.canvas.width*.5)),Math.max(1,Math.round(this.canvas.height*.5)));
   this.lensFbo=gl.createFramebuffer();this.framebuffers.push(this.lensFbo);gl.bindFramebuffer(gl.FRAMEBUFFER,this.lensFbo);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,this.lensColor,0);gl.bindFramebuffer(gl.FRAMEBUFFER,null);
-  this.light=unprojectPoint(w*.985,h*.012,Math.min(w,h)*.72,this.camera);
-  this.lightData=new Float32Array([w*.985,h*.012,Math.min(w,h)*.72,1,6,1,0,0,.43,0,0,0,1,5]);
  }
- setQuality(step){this.quality=step;}
+ setQuality(step){this.quality=step;if(step>0&&this.automatic)this.setDepthOfField(false,false);}
+ setDepthOfField(enabled,manual=true){if(manual)this.automatic=false;if(this.dof===enabled)return;this.dof=enabled;if(this.w)this.resize(this.w,this.h,this.dpr);}
+ stats(){return {depthOfField:this.dof?'depth-buffer / subtle 7-tap lens':'off / perspective depth',dofEnabled:this.dof,postPasses:this.dof?2:0,geometryPasses:this.dof&&!this.nativeDepth?2:1,lensTaps:this.dof?7:0,environmentSamplesPerAnchor:1};}
  use(p,scene,kind,depthPass){const gl=this.gl,u=p.uniforms,c=this.camera;gl.useProgram(p.p);gl.uniform2f(u.resolution,this.w,this.h);gl.uniform2f(u.rotation,scene.yaw||0,scene.pitch||0);gl.uniform3f(u.light,...this.light);gl.uniform4f(u.camera,c.distance,c.near,c.far,c.aperture);gl.uniform1f(u.scale,scene.composition.scale);gl.uniform1f(u.dpr,this.dpr);gl.uniform1f(u.kind,kind);gl.uniform1f(u.time,scene.time||0);gl.uniform1f(u.depthPass,depthPass);}
  upload(p,buffer,data,count,instance=0){
   const gl=this.gl;gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
@@ -144,18 +153,36 @@ export class ParticleRenderer{
    gl.bindBuffer(gl.ARRAY_BUFFER,this.buffers.grain);for(const [location,offset] of [[p.local,0],[p.normal,12]]){gl.enableVertexAttribArray(location);gl.vertexAttribPointer(location,3,gl.FLOAT,false,24,offset);this.instancing.vertexAttribDivisorANGLE(location,0);}
    this.instancing.drawArraysInstancedANGLE(gl.TRIANGLES,0,24,count);
    for(const a of p.attributes)if(a.location>=0)this.instancing.vertexAttribDivisorANGLE(a.location,0);gl.disableVertexAttribArray(p.local);gl.disableVertexAttribArray(p.normal);
-  }else gl.drawArrays(gl.POINTS,0,count);
+  }else{gl.drawArrays(gl.POINTS,0,count);}
   for(const a of p.attributes)if(a.location>=0)gl.disableVertexAttribArray(a.location);
+ }
+ environment(light,depthPass){
+  if(!light?.count||light.opacity<.001)return;
+  const gl=this.gl,c=this.camera,u=this.environmentUniforms;
+  gl.useProgram(this.environmentProgram);gl.uniform2f(u.resolution,this.w,this.h);gl.uniform4f(u.camera,c.distance,c.near,c.far,c.aperture);
+  gl.uniform4f(u.pointer,light.x,light.y,light.radius,light.opacity);gl.uniform1f(u.depthPass,depthPass);
+  gl.bindBuffer(gl.ARRAY_BUFFER,this.buffers.environment);
+  if(this.environmentBytes!==light.vertices.byteLength){gl.bufferData(gl.ARRAY_BUFFER,light.vertices.byteLength,gl.DYNAMIC_DRAW);this.environmentBytes=light.vertices.byteLength;}
+  gl.bufferSubData(gl.ARRAY_BUFFER,0,light.vertices.subarray(0,light.count*7));
+  this.environmentAttributes.forEach((location,i)=>{if(location<0)return;gl.enableVertexAttribArray(location);gl.vertexAttribPointer(location,i===2?1:3,gl.FLOAT,false,28,i===0?0:i===1?12:24);this.instancing?.vertexAttribDivisorANGLE(location,0);});
+  if(!depthPass){gl.enable(gl.BLEND);gl.blendFuncSeparate(gl.ONE,gl.ONE,gl.ZERO,gl.ONE);}
+  gl.drawArrays(gl.TRIANGLES,0,light.count);gl.disable(gl.BLEND);
+  for(const location of this.environmentAttributes)if(location>=0)gl.disableVertexAttribArray(location);
  }
  render(data,count,scene){
   const gl=this.gl;if(gl.isContextLost())return;gl.viewport(0,0,this.canvas.width,this.canvas.height);gl.disable(gl.BLEND);gl.enable(gl.DEPTH_TEST);gl.depthMask(true);
-  const passes=this.nativeDepth?1:2;
+  sceneLight(this.w,this.h,this.camera,scene.pointer,this.lightTarget);
+  const lightStep=1-Math.exp(-Math.min(1/30,Math.max(0,(scene.time||0)-this.lastLightTime))/.24);this.lastLightTime=scene.time||0;
+  for(let i=0;i<3;i++)this.light[i]+=(this.lightTarget[i]-this.light[i])*lightStep;
+  const passes=!this.dof||this.nativeDepth?1:2;
   for(let pass=0;pass<passes;pass++){
-   gl.bindFramebuffer(gl.FRAMEBUFFER,pass?this.depthFbo:this.sceneFbo);if(pass)gl.clearColor(1,1,1,1);else gl.clearColor(.012,.016,.020,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+   gl.bindFramebuffer(gl.FRAMEBUFFER,this.dof?(pass?this.depthFbo:this.sceneFbo):null);if(pass)gl.clearColor(1,1,1,1);else gl.clearColor(.012,.016,.020,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
    this.grains(this.buffers.icon,data,count,scene,0,pass);
    this.grains(this.buffers.dust,scene.backgroundData,scene.backgroundCount,scene,1,pass);
    this.grains(this.buffers.foreground,scene.foregroundData,scene.foregroundCount,scene,2,pass);
+   this.environment(scene.environmentLight,pass);
   }
+  if(!this.dof)return;
   gl.disable(gl.DEPTH_TEST);gl.useProgram(this.lens);gl.bindBuffer(gl.ARRAY_BUFFER,this.buffers.quad);gl.enableVertexAttribArray(this.lensQuad);gl.vertexAttribPointer(this.lensQuad,2,gl.FLOAT,false,0,0);this.instancing?.vertexAttribDivisorANGLE(this.lensQuad,0);
   const u=this.lensUniforms,c=this.camera;
   gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,this.depth);gl.uniform1i(u.depth,1);
@@ -167,7 +194,7 @@ export class ParticleRenderer{
   }
   gl.disableVertexAttribArray(this.lensQuad);
  }
- dispose(){const gl=this.gl;if(gl.isContextLost())return;this.releaseTargets();Object.values(this.buffers).forEach(b=>gl.deleteBuffer(b));gl.deleteProgram(this.points.p);if(this.shards)gl.deleteProgram(this.shards.p);gl.deleteProgram(this.lens);this.allocated.clear();this.uploadViews.clear();}
+ dispose(){const gl=this.gl;if(gl.isContextLost())return;this.releaseTargets();Object.values(this.buffers).forEach(b=>gl.deleteBuffer(b));gl.deleteProgram(this.points.p);if(this.shards)gl.deleteProgram(this.shards.p);gl.deleteProgram(this.lens);gl.deleteProgram(this.environmentProgram);this.allocated.clear();this.uploadViews.clear();}
 }
 
 export function grainGeometry(){
@@ -176,4 +203,12 @@ export function grainGeometry(){
   const ids=side?[1,2+(i+1)%4,2+i]:[0,2+i,2+(i+1)%4],a=points[ids[0]],b=points[ids[1]],c=points[ids[2]],u=b.map((v,k)=>v-a[k]),v=c.map((v,k)=>v-a[k]),n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]],l=Math.hypot(...n);
   for(const id of ids)data.push(...points[id],...n.map(x=>x/l));
  }return new Float32Array(data);
+}
+
+// One physical point light illuminates both grains and all environment sheets.
+// It follows the already-smoothed pointer, with no screen-space flare or sprite.
+export function sceneLight(w,h,camera,pointer,out=[]){
+ const x=pointer?.active?Math.max(0,Math.min(1,pointer.x/w)):.5;
+ const y=pointer?.active?Math.max(0,Math.min(1,pointer.y/h)):.5;
+ return unprojectPoint(w*(.90+(x-.5)*.22),h*(.06+(y-.5)*.16),Math.min(w,h)*.62,camera,out);
 }

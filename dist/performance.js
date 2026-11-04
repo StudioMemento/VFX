@@ -8,10 +8,15 @@ export function summarizeFrames(frames){
 export function installPerformance(component){
  if(!component)return;
  const panel=document.createElement('aside');panel.className='memento-perf';panel.setAttribute('aria-label','Misurazione performance');
- panel.innerHTML='<strong>MEMENTO · DEVICE TEST</strong><p>30 s visibili: prova idle e interazione.<br>I dati restano su questo device.</p><output>Pronto</output><div><button type="button" data-record>Registra 30 s</button><button type="button" data-save disabled>Salva JSON</button><button type="button" data-close aria-label="Chiudi misurazione">×</button></div>';
+ panel.innerHTML='<strong>MEMENTO · DEVICE TEST</strong><p>30 s visibili: prova idle e interazione.<br>I dati restano su questo device.</p><button type="button" data-dof></button><button type="button" data-fx></button><output>Pronto</output><div><button type="button" data-record>Registra 30 s</button><button type="button" data-save disabled>Salva JSON</button><button type="button" data-close aria-label="Chiudi misurazione">×</button></div>';
  const style=document.createElement('style');style.textContent='.memento-perf{position:fixed;right:16px;bottom:16px;z-index:20;max-width:calc(100vw - 32px);width:310px;padding:16px;background:#101112f5;color:#f5f4ee;border:1px solid #7e6745;font:12px/1.5 Inter,Arial,sans-serif;box-sizing:border-box}.memento-perf p{margin:8px 0;color:#bbb}.memento-perf output{display:block;white-space:pre-line;font:11px/1.5 monospace;min-height:48px}.memento-perf div{display:flex;gap:8px;margin-top:12px}.memento-perf button{background:#24231f;color:#fff;border:1px solid #62543d;padding:8px;font:inherit;cursor:pointer}.memento-perf button:disabled{opacity:.4}.memento-perf button:focus-visible{outline:2px solid #ffba76}';
  document.head.append(style);document.body.append(panel);
- let frames=[],recording=false,duration=0,report=null,lastUi=0;const record=panel.querySelector('[data-record]'),save=panel.querySelector('[data-save]'),output=panel.querySelector('output');
+ let frames=[],recording=false,duration=0,report=null,lastUi=0;const record=panel.querySelector('[data-record]'),save=panel.querySelector('[data-save]'),output=panel.querySelector('output'),dof=panel.querySelector('[data-dof]'),fx=panel.querySelector('[data-fx]');
+ const updateFx=()=>{fx.textContent='Materiale cursore: '+(component.fxEnabled?'ON':'OFF');fx.setAttribute('aria-pressed',String(component.fxEnabled));};updateFx();
+ fx.onclick=()=>{component.setCursorFx(!component.fxEnabled);updateFx();};
+ const updateDof=()=>{dof.textContent='Sfocatura: '+(component.renderer?.dof?'ON':'OFF');dof.setAttribute('aria-pressed',String(!!component.renderer?.dof));};
+ dof.disabled=!component.renderer;updateDof();
+ dof.onclick=()=>{component.renderer.setDepthOfField(!component.renderer.dof);component.draw();updateDof();output.textContent='Modalità aggiornata. Registra un nuovo campione di 30 s.';};
  const before=component.options.onFrame;
  component.options.onFrame=sample=>{
   before?.(sample);if(!recording)return;
@@ -20,12 +25,12 @@ export function installPerformance(component){
   frames.push(sample);duration+=sample.interval;
   if(duration-lastUi>500){lastUi=duration;output.textContent=`${Math.min(30,duration/1000).toFixed(1)} / 30 s\n${component.drawCount} sparkle · ${component.universe.count} ambiente\nDPR ${component.dpr} · qualità ${component.qualityStep}`;}
   if(duration>=30000){
-   recording=false;record.disabled=false;save.disabled=false;
-   report={version:'cinematic-v1',timestamp:new Date().toISOString(),userAgent:navigator.userAgent,viewport:{width:innerWidth,height:innerHeight,devicePixelRatio},reducedMotion:component.reduced,renderer:component.card.dataset.renderer,summary:summarizeFrames(frames),qualityTransitions:frames.filter((f,i)=>i===0||f.quality!==frames[i-1].quality).map(f=>({atMs:f.at,quality:f.quality,icon:f.icon,ambient:f.ambient,dpr:f.dpr})),diagnostics:JSON.parse(component.card.dataset.diagnostics||'{}'),note:'FPS uses actual visible rAF intervals. CPU excludes asynchronous GPU work. Desktop viewport emulation is not physical-device measurement.'};
+   recording=false;record.disabled=false;save.disabled=false;dof.disabled=false;fx.disabled=false;updateDof();
+   report={version:'orbital-fx-v6',cursorFx:component.fxEnabled,dof:component.renderer.dof,renderPasses:component.renderer.stats(),timestamp:new Date().toISOString(),userAgent:navigator.userAgent,viewport:{width:innerWidth,height:innerHeight,devicePixelRatio},reducedMotion:component.reduced,renderer:component.card.dataset.renderer,summary:summarizeFrames(frames),qualityTransitions:frames.filter((f,i)=>i===0||f.quality!==frames[i-1].quality).map(f=>({atMs:f.at,quality:f.quality,icon:f.icon,ambient:f.ambient,dpr:f.dpr})),diagnostics:JSON.parse(component.card.dataset.diagnostics||'{}'),note:'FPS uses actual visible rAF intervals. CPU excludes asynchronous GPU work. Desktop viewport emulation is not physical-device measurement.'};
    const s=report.summary;output.textContent=`${s.averageFps} FPS medi · frame p95 ${s.frameP95Ms} ms\nCPU mediana ${s.cpuMedianMs} ms\n${s.over50ms} frame oltre 50 ms`;
   }
  };
- record.onclick=()=>{if(component.reduced||!component.renderer){output.textContent='Animazione disattivata o WebGL non disponibile.';return;}frames=[];duration=lastUi=0;report=null;recording=true;record.disabled=true;save.disabled=true;output.textContent='Registrazione…';};
- save.onclick=()=>{if(!report)return;const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='MEMENTO_DEVICE_PERFORMANCE.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+ record.onclick=()=>{if(component.reduced||!component.renderer){output.textContent='Animazione disattivata o WebGL non disponibile.';return;}frames=[];duration=lastUi=0;report=null;recording=true;record.disabled=true;save.disabled=true;dof.disabled=true;fx.disabled=true;output.textContent='Registrazione…';};
+ save.onclick=()=>{if(!report)return;const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='MEMENTO_DEVICE_PERFORMANCE.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);};
  panel.querySelector('[data-close]').onclick=()=>{recording=false;component.options.onFrame=before;panel.remove();style.remove();};
 }
