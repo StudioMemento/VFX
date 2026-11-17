@@ -1,6 +1,5 @@
 import {mountReadyToStart} from './ready-to-start.js';
-const dof=new URLSearchParams(location.search).get('dof');
-const cards=mountReadyToStart(document,{depthOfField:dof==='on'?true:dof==='off'?false:undefined,cursorFx:new URLSearchParams(location.search).get('fx')!=='off'});
+const cards=mountReadyToStart();
 // BFCache keeps the instance; normal page disposal releases all observers and GPU resources.
 addEventListener('pagehide',e=>{if(e.persisted)cards.forEach(card=>card.pause());else cards.forEach(card=>card.destroy());});
 addEventListener('pageshow',e=>{if(e.persisted)cards.forEach(card=>card.resume());});
